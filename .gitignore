@@ -2,6 +2,14 @@
 score_hma
 painted_lidar
 /detector/data/kitti/training/log/
+/detector/data/kitti/training/calib/
+/detector/data/kitti/training/image_2/
+/detector/data/kitti/training/image_3/
+/detector/data/kitti/training/label_2/
+/detector/data/kitti/training/painted_lidar/
+/detector/data/kitti/training/planes/
+/detector/data/kitti/training/score_hma/
+/detector/data/kitti/training/velodyne/
 /painting/hma/assets
 /painting/mmseg/checkpoints
 **/.DS_Store
