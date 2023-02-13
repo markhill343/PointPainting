@@ -1,0 +1,4 @@
+cd PointPainting/detector/
+python3 setup.py develop
+cd tools/
+python3 detector/tools/demo.py --cfg_file cfgs/kitti_models/pointpillar_painted.yaml --ckpt /tmp/PointPainting/detector/output/kitti_models/pointpillar_painted/default/ckpt/checkpoint_epoch_80.pth --data_path /tmp/PointPainting/detector/data/kitti/training/painted_lidar/ --ext .npy
