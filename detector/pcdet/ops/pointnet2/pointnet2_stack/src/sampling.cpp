@@ -6,7 +6,7 @@
 
 #include "sampling_gpu.h"
 
-extern THCState *state;
+
 #define CHECK_CUDA(x) do { \
   if (!x.type().is_cuda()) { \
     fprintf(stderr, "%s must be CUDA tensor at %s:%d\n", #x, __FILE__, __LINE__); \

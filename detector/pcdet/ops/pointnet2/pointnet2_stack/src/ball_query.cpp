@@ -13,7 +13,6 @@ All Rights Reserved 2019-2020.
 #include <cuda_runtime_api.h>
 #include "ball_query_gpu.h"
 
-extern THCState *state;
 
 #define CHECK_CUDA(x) do { \
   if (!x.type().is_cuda()) { \
