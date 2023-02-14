@@ -13,7 +13,6 @@ All Rights Reserved 2018.
 
 #include "sampling_gpu.h"
 
-extern THCState *state;
 
 
 int gather_points_wrapper_fast(int b, int c, int n, int npoints, 

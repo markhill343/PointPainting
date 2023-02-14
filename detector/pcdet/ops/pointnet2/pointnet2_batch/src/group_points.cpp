@@ -13,8 +13,6 @@ All Rights Reserved 2018.
 #include <ATen/cuda/CUDAEvent.h>
 #include "group_points_gpu.h"
 
-extern THCState *state;
-
 
 int group_points_grad_wrapper_fast(int b, int c, int n, int npoints, int nsample, 
     at::Tensor grad_out_tensor, at::Tensor idx_tensor, at::Tensor grad_points_tensor) {
