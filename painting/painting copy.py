@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 import os
-from PIL import Image as PILImage
+from PIL import Image
 from tqdm import tqdm
 
 from mmseg.apis import inference_segmentor, init_segmentor
@@ -12,12 +12,6 @@ import mmcv
 
 import pcdet_utils.calibration_kitti as calibration_kitti
 
-import rclpy
-from rclpy.node import Node
-from sensor_msgs.msg import Image, PointCloud2
-from std_msgs.msg import String
-from pcl_msgs.msg import PointCloud
-import pcl_conversions
 
 TRAINING_PATH = "../detector/data/kitti/training/"
 TWO_CAMERAS = True
@@ -52,7 +46,7 @@ class Painter:
         lidar_file = self.root_split_path + 'velodyne/' + ('%s.bin' % idx)
         return np.fromfile(str(lidar_file), dtype=np.float32).reshape(-1, 4)
 
-    def get_score(self, idx, input_image):
+    def get_score(self, idx, left):
         ''' idx : index string
             left : string indicates left/right camera 
         return:
@@ -60,6 +54,8 @@ class Painter:
         '''
         output_reassign_softmax = None
         if self.seg_net_index == 0:
+            filename = self.root_split_path + left + ('%s.png' % idx)
+            input_image = Image.open(filename)
             preprocess = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
@@ -91,7 +87,8 @@ class Painter:
             output_reassign_softmax = sf(output_reassign).cpu().numpy()
 
         elif self.seg_net_index == 1:
-            result = inference_segmentor(self.model, input_image)
+            filename = self.root_split_path + left + ('%s.png' % idx)
+            result = inference_segmentor(self.model, filename)
             # person 11, rider 12, vehicle 13/14/15/16, bike 17/18
             output_permute = torch.tensor(result[0]).permute(1,2,0) # H, W, 19
             sf = torch.nn.Softmax(dim=2)
@@ -222,7 +219,7 @@ class Painter:
         augmented_lidar = self.create_cyclist(augmented_lidar)
 
         return augmented_lidar
-    
+
     def run(self):
         num_image = 7481
         for idx in tqdm(range(num_image)):
@@ -243,104 +240,7 @@ class Painter:
             points = self.augment_lidar_class_scores_both(scores_from_cam_r, scores_from_cam, points, calib_fromfile)
             
             np.save(self.save_path + ("%06d.npy" % idx), points)
-    
-class PainterNode(Node):
-    def __init__(self):
-        super().__init__('painted_node')
-        self.declare_parameter("seg_net").value
-        self.seg_net = self.get_parameter("seg_net").value
-        self.painter = Painter(self.seg_net)
-    
-        self.subscription_image = self.create_subscription(
-            Image,
-            'image',
-            self.image_callback,
-            10)
-        self.subscription_lidar = self.create_subscription(
-            PointCloud2,
-            'lidar_cloud',
-            self.lidar_callback,
-            10)
-        self.subscription_config = self.create_subscription(
-            String,
-            'config_file',
-            self.config_callback,
-            10)
-
-        self.publisher_painted_lidar = self.create_publisher(
-            PointCloud,
-            'painted_lidar_cloud',
-            10)
-        
-        self.left_image_data = None
-        self.right_image_data = None
-        self.lidar_data = None
-        self.config_data = None
-
-    def left_image_callback(self, msg):
-        self.left_image_data = np.array(msg.data).reshape(msg.height, msg.width, -1)
-
-    def right_image_callback(self, msg):
-        self.right_image_data = np.array(msg.data).reshape(msg.height, msg.width, -1)
-
-    def lidar_callback(self, msg):
-        self.lidar_data = pcl_conversions.pointcloud2_to_array(msg)
-
-    def config_callback(self, msg):
-        self.config_data = msg.data
-
-    def process_data(self):
-        if self.left_image_data is None or self.right_image_data is None or self.lidar_data is None or self.config_data is None:
-            return
-
-        idx = self.config_data
-        left_image = PILImage.fromarray(self.left_image_data)
-        right_image = PILImage.fromarray(self.right_image_data)
-        lidar_points = self.lidar_data
-
-        painted_lidar = self.painter.paint(idx, left_image, right_image, lidar_points)
-        painted_lidar_msg = pcl_conversions.array_to_pointcloud2(painted_lidar)
-
-        self.publisher_painted_lidar.publish(painted_lidar_msg)
-
-        self.left_image_data = None
-        self.right_image_data = None
-        self.lidar_data = None
-        self.config_data = None
-    
-    def run(self):
-        num_image = 7481
-        for idx in tqdm(range(num_image)):
-            sample_idx = "%06d" % idx
-            points = self.painter.get_lidar(sample_idx)
-            
-            # get segmentation score from network
-            scores_from_cam = self.painter.get_score(sample_idx, self.left_image_data)
-            scores_from_cam_r = self.painter.get_score(sample_idx, self.right_image_data)
-            # scores_from_cam: H * W * 4/5, each pixel have 4/5 scores(0: background, 1: bicycle, 2: car, 3: person, 4: rider)
-
-            # get calibration data
-            calib_fromfile = self.painter.get_calib_fromfile(sample_idx)
-            
-            # paint the point clouds
-            # points: N * 8
-            points = self.painter.augment_lidar_class_scores_both(scores_from_cam_r, scores_from_cam, points, calib_fromfile)
-            
-            np.save(self.save_path + ("%06d.npy" % idx), points)
-
-
-def main(args=None):
-    rclpy.init(args=args)
-
-    painter_node = PainterNode()
-
-    try:
-        rclpy.spin(painter_node)
-    except KeyboardInterrupt:
-        pass
-
-    painter_node.destroy_node()
-    rclpy.shutdown()    
 
 if __name__ == '__main__':
+    painter = Painter(SEG_NET)
     painter.run()
